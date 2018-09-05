@@ -1,0 +1,9 @@
+Accuracy: 0.9951918158567775
+Precision: [0.9874 0.9967]
+Recall: [0.9831 0.9976]
+F1 score: [0.9852 0.9971]
+Cohen Kappa score: 0.9823624405690933
+Confusion matrix:
+[[1568   27]
+ [  20 8160]]
+Labels: ['no', 'yes']

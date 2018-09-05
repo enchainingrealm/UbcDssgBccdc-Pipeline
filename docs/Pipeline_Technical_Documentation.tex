@@ -1,0 +1,669 @@
+\documentclass[a4paper]{article}
+
+%% Language and font encodings
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage[T1]{fontenc}
+
+%% Sets page size and margins
+\usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.75em}
+
+%% Useful packages
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+
+\usepackage{float}
+\restylefloat{table}
+
+\usepackage{courier}
+\usepackage{color}
+\definecolor{light-gray}{gray}{0.95}
+
+\usepackage{listings}
+\lstset{
+    basicstyle=\ttfamily,
+    breaklines=true,
+    backgroundcolor=\color{light-gray}
+}
+
+\title{Pipeline Technical Documentation}
+\author{Joy (Sizhe) Chen, Kenny Chiu, William Lu, Nelly (Nilgoon) Zarei}
+\date{August 31st, 2018}
+
+\begin{document}
+\maketitle
+
+\section{Database operations}
+
+\subsection{Obtaining a database connection}
+
+First, import the \lstinline{Database} class:
+
+\lstset{language=Python}
+\begin{lstlisting}
+from io_.db import Database
+\end{lstlisting}
+\lstset{language=}
+
+The \lstinline{Database} class follows the singleton pattern to ensure that only one database connection is opened throughout the execution of a script. Thus, never directly call the \lstinline{Database} constructor. Instead, call the static \lstinline{get_instance} method, which returns a \lstinline{Database} object representing the database connection:
+
+\lstset{language=Python}
+\begin{lstlisting}
+db = Database.get_instance()
+\end{lstlisting}
+\lstset{language=}
+
+\subsection{Loading data from the database}
+
+To load data from the database into a Pandas dataframe, write a SQL script to specify the tables to load from and the rows and columns to load, and save the script as a \lstinline{.sql} file. For example, the following script loads all the \textit{result\_full\_description}s from the database:
+
+\lstset{language=SQL}
+\begin{lstlisting}
+SELECT test_key, result_key, result_full_description
+FROM lab.dim_test_result
+\end{lstlisting}
+\lstset{language=}
+
+Next, call the \lstinline{Database} object's \lstinline{extract} method, passing the absolute path to the SQL script as a parameter:
+
+\lstset{language=Python}
+\begin{lstlisting}
+df = db.extract("absolute_path_to_sql_script.sql")
+\end{lstlisting}
+\lstset{language=}
+
+The \lstinline{extract} method returns a Pandas dataframe whose columns are the columns specified in the SQL script's \lstinline{SELECT} statement:
+
+\begin{table}[H]
+\begin{tabular}{|c|c|c|}
+\hline
+test\_key & result\_key & result\_full\_description \\\hline
+5 & -1 & *Missing \\
+6 & 3075034 & HbA1C therapeutic goal < 5y < or =9\% | HbA1C therapeutic goal ... \\
+... & ... & ... \\\hline
+\end{tabular}
+\end{table}
+
+If a \lstinline{NULL} is extracted from the database, it is stored as the Python \lstinline{None} singleton in the dataframe.
+
+If the SQL script is invalid (for example, a column name or table name does not exist,) a \lstinline{sqlalchemy.exc.ProgrammingError} is raised.
+
+\subsection{Saving data to the database}
+
+Call the \lstinline{Database} object's \lstinline{insert} method, passing the dataframe to insert, the name of the table to insert to, and the schema name as parameters. The below example inserts a dataframe named \lstinline{df} into the \lstinline{lab.dim_test_result} table:
+
+\lstset{language=Python}
+\begin{lstlisting}
+db.insert(df, "dim_test_result", "lab")
+\end{lstlisting}
+\lstset{language=}
+
+The \lstinline{insert} method has \textbf{undefined behaviour} if:
+
+\begin{itemize}
+\item the table name does not exist
+\item the schema name does not exist
+\item the dataframe's columns do not match the table's columns
+\item inserting any row in the dataframe would cause a key conflict
+\end{itemize}
+
+\section{Using MetaMap to annotate data}
+
+Our pipeline implements an interface to run MetaMap annotation on \textit{result\_full\_description} strings. Some classification algorithms in our pipeline require MetaMap annotations to be given as input along with the \textit{result\_full\_description}s.
+
+To use the MetaMap interface, run \textit{driver/metamap.py}. Set the constants at the top of the file to their desired values:
+
+\begin{itemize}
+\item \textbf{\lstinline{SQL_FILEPATH}} - the absolute path to the SQL script for extracting the data to annotate
+\item \textbf{\lstinline{TABLE}} - the name of the table to write the annotations to
+\item \textbf{\lstinline{SCHEMA}} - the schema name of the table to write the annotations to
+\item \textbf{\lstinline{OBSERVATIONS}} - \lstinline{True} to run MetaMap at the observation level, \lstinline{False} to run MetaMap at the test level
+\end{itemize}
+
+The data extracted from the database must have 3 columns: \textit{test\_key}, \textit{result\_key}, and \textit{result\_full\_description}. If \lstinline{OBSERVATIONS} is \lstinline{True}, there must be an additional \textit{obs\_seq\_nbr} column.
+
+The table which the MetaMap annotations are written to must have 4 columns: \textit{test\_key}, \textit{result\_key}, \textit{tags}, and \textit{candidates}. If \lstinline{OBSERVATIONS} is \lstinline{True}, there must be an additional \textit{obs\_seq\_nbr} column.
+
+\subsection{MetaMap tags format}
+
+Refer to Section 1.1 of "MetaMapBuild Source Code Documentation".
+
+\subsection{MetaMap candidates format} \label{metamap_candidates_format}
+
+A \textit{candidates} string from MetaMap contains the preferred names of all the organisms MetaMap found in the \textit{result\_full\_description}. The \textit{candidates} string is a serialized JSON object.
+
+The JSON object contains an arbitrary number of key-value pairs. Each key is a preferred name. For example:
+
+\lstset{language=}
+\begin{lstlisting}
+{
+    "Genus Mycobacterium": { ... },
+    "Mycobacterium avium complex": { ... }
+}
+\end{lstlisting}
+\lstset{language=}
+
+Each value is another JSON object, containing the keys "CUI", "matched", and "position". For example, the value corresponding to "Genus Mycobacterium" is:
+
+\lstset{language=}
+\begin{lstlisting}
+{
+    "CUI": "C0026192",
+    "matched": ["mycobacteria"],
+    "position": [10]
+}
+\end{lstlisting}
+\lstset{language=}
+
+\begin{itemize}
+\item The "CUI" value is the Concept Unique Identifier that MetaMap uses internally to uniqely identify the preferred name.
+\item The "matched" value is an array of strings. Each string is a substring of the \textit{result\_full\_description} that MetaMap mapped to the preferred name.
+\item The "position" value is an array of integers. The \textit{i}th integer is the \textit{i}th matched substring's starting index in the \textit{result\_full\_description}.
+\end{itemize}
+
+In this example, "mycobacteria" (a substring starting at index 10 in the \textit{result\_full\_description}) was mapped by MetaMap to the "Genus Mycobacterium" preferred name.
+
+Also refer to Section 1.2 of "MetaMapBuild Source Code Documentation".
+
+\subsection{Design tradeoffs}
+
+Running MetaMap is computationally expensive; it takes approximately 50 to 60 hours to run MetaMap on 365 thousand average-length \textit{result\_full\_description}s. It is intractable to re-annotate old training data on every run of the pipeline, so it is necessary to persist MetaMap annotations to the database. To simplify our pipeline implementation, we use blocking I/O operations when waiting for responses from the MetaMap API server.
+
+As a result of these considerations, and to enforce best practices, we do not provide an interface for runing MetaMap on an in-memory dataframe or returning MetaMap annotations to an in-memory dataframe. All data to be annotated by MetaMap must be fetched from the database, and all MetaMap annotations must be written to the database.
+
+We also do not support running MetaMap from any file other than \textit{driver/metamap.py}.
+
+\subsection{Server connection bug and workaround}
+
+Our pipeline uses the Py4J library to connect to the MetaMap API server from Python. The connection code contains a non-deterministic bug: occasionally, a \lstinline{py4j.protocol.Py4JNetworkError} is raised.
+
+As a workaround, our pipeline catches this error, if it is raised, and attempts to retry the connection up to five times. If an attempt succeeds, our pipeline prints the attempt number that succeeded (for example, "Connected to Java server on attempt 2".) If all five attempts fail, our pipeline raises an \lstinline{Exception}.
+
+\section{Using the classification modules}
+
+The \lstinline{TestPerformedModule}, \lstinline{TestOutcomeModule}, and \lstinline{Level1MLModule} classes implement machine learning algorithms for classifying the \textit{Test Performed}, \textit{Test Outcome}, and \textit{Level 1} labels, respectively.
+
+The \lstinline{Level1SymbolicModule} and \lstinline{Level2Module} classes implement symbolic algorithms for classifying the \textit{Level 1} and \textit{Level 2} labels, respectively.
+
+We use machine learning approaches to classify \textit{Test Performed} and \textit{Test Outcome} because these approaches do not require hard-coding any special cases manually into the source code. Machine learning algorithms are capable of dynamically adapting to new patterns in new training data, and are thus not dependent on the usage of grammatically correct English in the text to classify.
+
+We use a symbolic approach to classify \textit{Level 2} because of the high number of classes: there are more than 600 different \textit{Level 2} classes in the database. This, combined with the low number of labelled data rows for each class, renders machine learning approaches ineffective. Symbolic approaches are also more transparent and interpretable, and are capable of finding new organisms that do not already exist in the database.
+
+We provide both machine learning and symbolic approaches for classifying \textit{Level 1}. In our testing, the machine learning approach achieved high (>95\%) accuracy, while the symbolic approach achieved medium (>85\%) accuracy.
+
+\subsubsection{Vectorizers for machine learning modules}
+
+All three machine learning modules use bag-of-words count vectorizers.
+
+The \lstinline{TestPerformedModule} uses unigrams, bigrams, and trigrams as features. Trigrams are used because "Test not performed" is a very important feature. To remove irrelevant features, a minimum document frequency of 10 is used. Features with variance less than 0.001 are also removed.
+
+The \lstinline{TestOutcomeModule} uses only unigrams as features, with a minimum document frequency of 5.
+
+The \lstinline{Level1MLModule} uses unigrams, bigrams, and trigrams as features. Trigrams are used because some organism names are up to three words long. Only the top 200 features, as selected by chi-squared feature selection, are used. No minimum document frequency is used because some features relevant to predicting an organism name may appear only in the few rows labelled as that organism name.
+
+\subsection{Instantiation}
+
+First, import the classes:
+
+\lstset{language=Python}
+\begin{lstlisting}
+from modules.test_performed_module import TestPerformedModule
+from modules.test_outcome_module import TestOutcomeModule
+from modules.level_1_ml_module import Level1MLModule
+from modules.level_1_symbolic_module import Level1SymbolicModule
+from modules.level_2_module import Level2Module
+\end{lstlisting}
+\lstset{language=}
+
+To instantiate a \lstinline{TestPerformedModule}, \lstinline{TestOutcomeModule}, or \lstinline{Level1MLModule}, simply call the respective constructor, passing no arguments:
+
+\lstset{language=Python}
+\begin{lstlisting}
+tp_module = TestPerformedModule()
+to_module = TestOutcomeModule()
+l1ml_module = Level1MLModule()
+\end{lstlisting}
+\lstset{language=}
+
+\subsubsection{Helper modules} \label{helper_modules}
+
+The \lstinline{Level1SymbolicModule} may \textbf{optionally} refer to a trained \lstinline{TestOutcomeModule} to further improve the former module's predictive power. To use this functionality, pass a \textbf{trained} instance of \lstinline{TestOutcomeModule} to the \lstinline{Level1SymbolicModule} constructor:
+
+\lstset{language=Python}
+\begin{lstlisting}
+# Assume: to_module is a trained TestOutcomeModule instance
+l1s_module = Level1SymbolicModule(to_module)
+# Now, l1s_module is a newly instantiated Level1SymbolicModule instance
+\end{lstlisting}
+\lstset{language=}
+
+Or to disable this functionality, call the \lstinline{Level1SymbolicModule} constructor with no arguments:
+
+\lstset{language=Python}
+\begin{lstlisting}
+l1s_module = Level1SymbolicModule()
+# Now, l1s_module is a newly instantiated Level1SymbolicModule instance
+\end{lstlisting}
+\lstset{language=}
+
+The \lstinline{Level2Module} \textbf{must} refer to a \textbf{trained} \textit{Level 1} module, because \textit{Level 2} is logically a subtype of \textit{Level 1}:
+
+\lstset{language=Python}
+\begin{lstlisting}
+# Assume: l1ml_module is a trained Level1MLModule instance
+l2_module = Level2Module(l1ml_module)
+# Now, l2_module is a newly instantiated Level2Module instance
+\end{lstlisting}
+\lstset{language=}
+
+\lstset{language=Python}
+\begin{lstlisting}
+# Assume: l1s_module is a trained Level1SymbolicModule instance
+l2_module = Level2Module(l1s_module)
+# Now, l2_module is a newly instantiated Level2Module instance
+\end{lstlisting}
+\lstset{language=}
+
+The \lstinline{TestOutcomeModule} that the \lstinline{Level1SymbolicModule} refers to, and the \textit{Level 1} module that the \lstinline{Level2Module} refers to, are called \textbf{helper modules} throughout our technical documentation.
+
+\subsubsection{Replacing organism names with a special token} \label{replacing_organism_names_with_a_special_token}
+
+To prevent the \lstinline{TestPerformedModule} and \lstinline{TestOutcomeModule} classifiers from overfitting to specific organism names, our pipeline implements an algorithm for replacing all organism names in a classifier's feature space with the "\_ORGANISM\_" feature.
+
+This functionality is on by default. To turn it off, pass the \lstinline{organisms=False} flag to the \lstinline{TestPerformedModule} or \lstinline{TestOutcomeModule} constructor:
+
+\lstset{language=Python}
+\begin{lstlisting}
+tp_module = TestPerformedModule(organisms=False)
+to_module = TestOutcomeModule(organisms=False)
+\end{lstlisting}
+\lstset{language=}
+
+This functionality is only applicable to \lstinline{TestPerformedModule} and \lstinline{TestOutcomeModule}. The \lstinline{Level1MLModule}, \lstinline{Level1SymbolicModule}, and \lstinline{Level2Module} classes do not use this functionality because they classify the \textit{Organism Name} label, so fitting to specific organism names is always desirable.
+
+\subsection{Training on existing labelled data}
+
+To train a classification module, call its \lstinline{retrain} method, passing the dataframe containing the training data as a parameter:
+
+\lstset{language=Python}
+\begin{lstlisting}
+# Assume: tp_module is a TestPerformedModule instance
+# Assume: tp_df is a dataframe containing labelled test_performed rows
+tp_module.retrain(tp_df)
+
+# This syntax also works with instances of TestOutcomeModule,
+# Level1MLModule, Level1SymbolicModule, and Level2Module
+\end{lstlisting}
+\lstset{language=}
+
+The training dataframe must contain 4 columns: \textit{test\_key}, \textit{result\_key}, \textit{result\_full\_description}, and a column containing the true labels for the rows. The name of the column containing the labels varies depending on the classification module to train:
+
+\begin{table}[H]
+\begin{tabular}{|c|c|}
+\hline
+Classification module & Label column name \\\hline
+{\lstinline!TestPerformedModule!} & \textit{test\_performed} \\
+{\lstinline!TestOutcomeModule!} & \textit{test\_outcome} \\
+{\lstinline!Level1MLModule!}, {\lstinline!Level1SymbolicModule!} & \textit{level\_1} \\
+{\lstinline!Level2Module!} & \textit{level\_2} \\\hline
+\end{tabular}
+\end{table}
+
+Training dataframes for \lstinline{Level2Module} must always have an extra \textit{level\_1} column.
+
+If a \lstinline{TestPerformedModule} or \lstinline{TestOutcomeModule} has the functionality described in \ref{replacing_organism_names_with_a_special_token} enabled, its training dataframe must contain an additional \textit{candidates} column with the MetaMap \textit{candidate} strings (as described in \ref{metamap_candidates_format}.)
+
+\subsubsection{Training process for machine learning modules}
+
+When a \lstinline{TestPerformedModule}, \lstinline{TestOutcomeModule}, or \lstinline{Level1MLModule} is trained, 5-fold cross-validation is used to select the best machine learning classifier out of a list of candidate classifiers.
+
+For \lstinline{TestPerformedModule}, the candidate machine learning classifiers are:
+
+\begin{itemize}
+\item \textbf{Logistic Regression} with L2-regularization
+\item \textbf{Logistic Regression} with L1-regularization
+\item \textbf{Random Forest} with 100 trees (and all-core parallel processing)
+\item \textbf{Support Vector Machine} with linear kernel and L2-regularization
+\item \textbf{Support Vector Machine} with linear kernel and L1-regularization
+\end{itemize}
+
+For \lstinline{TestOutcomeModule}, the candidate machine learning classifiers are:
+
+\begin{itemize}
+\item \textbf{Logistic Regression} with L2-regularization and balanced class weights
+\item \textbf{Random Forest} with 100 trees and balanced class weights (and all-core parallel processing)
+\item \textbf{AdaBoost} with 100 decision stumps
+\item \textbf{Support Vector Machine} with linear kernel, L2-regularization, and balanced class weights
+\end{itemize}
+
+For \lstinline{Level1MLModule}, the candidate machine learning classifiers are:
+
+\begin{itemize}
+\item \textbf{Logistic Regression} with L2-regularization
+\item \textbf{Random Forest} with 100 trees (and all-core parallel processing)
+\item \textbf{AdaBoost} with 100 decision stumps
+\item \textbf{Support Vector Machine} with linear kernel and L2-regularization
+\end{itemize}
+
+\subsubsection{Training process for \lstinline{Level1SymbolicModule}}
+
+When a \lstinline{Level1SymbolicModule} is trained, a set of all the \textit{level\_1} labels in the training dataframe is created. For example, the set may be:
+
+\lstset{language=}
+\begin{lstlisting}
+{"*not found", "bordetella", "campylobacter", "influzena",
+ "parainfluenza or adenovirus", "vibrio", "yersinia"}
+\end{lstlisting}
+\lstset{language=}
+
+Next, \lstinline{"*not found"} is removed from the set. Then, \lstinline{"influzena"} is replaced with \lstinline{"influenza"}. Finally, all strings containing \lstinline{"or"} are split into the constituent organism names.
+
+After these edits, the set looks like this:
+
+\lstset{language=}
+\begin{lstlisting}
+{"adenovirus", "bordetella", "campylobacter", "influenza",
+ "parainfluenza", "vibrio", "yersinia"}
+\end{lstlisting}
+\lstset{language=}
+
+This set is called the \lstinline{Level1SymbolicModule}'s \textbf{dictionary}.
+
+\subsubsection{Training process for \lstinline{Level2Module}}
+
+When a \lstinline{Level2Module} is trained, a mapping from \textit{level\_1} labels to \textit{level\_2} labels is created from the training dataframe.
+
+Each \textit{level\_1} label in the training dataframe is mapped to a set of \textit{level\_2} labels that have appeared with the \textit{level\_1} label in the training dataframe. For example, if the training dataframe is:
+
+\begin{table}[H]
+\begin{tabular}{|c|c|c|}
+\hline
+... & level\_1 & level\_2 \\\hline
+... & yersinia & yersinia frederiksenii \\
+... & clostridium & clostridium difficile \\
+... & vibrio & vibrio vulnificus \\
+... & yersinia & yersinia pestis \\
+... & vibrio & vibrio vulnificus \\
+... & parainfluenza or adenovirus & parainfluenza \\
+... & *not found & *not found \\\hline
+\end{tabular}
+\end{table}
+
+Then the mapping will be:
+
+\lstset{language=}
+\begin{lstlisting}
+{
+    "yersinia": {"yersinia frederiksenii", "yersinia pestis"},
+    "clostridium": {"clostridium difficile"},
+    "vibrio": {"vibrio vulnificus"},
+    "parainfluenza or adenovirus": {"parainfluenza"}
+    "*not found": {"*not found"}
+}
+\end{lstlisting}
+\lstset{language=}
+
+Then, for all entries of the form \lstinline{"A or B": S} in the mapping, the set \lstinline{S} is added to the sets for \lstinline{A} and \lstinline{B}:
+
+\lstset{language=}
+\begin{lstlisting}
+{
+    "yersinia": {"yersinia frederiksenii", "yersinia pestis"},
+    "clostridium": {"clostridium difficile"},
+    "vibrio": {"vibrio vulnificus"},
+    "parainfluenza or adenovirus": {"parainfluenza"}
+    "*not found": {"*not found"},
+    "parainfluenza": {"parainfluenza"},
+    "adenovirus": {"adenovirus"}
+}
+\end{lstlisting}
+\lstset{language=}
+
+This mapping is called the \lstinline{Level2Module}'s \textbf{dictionary}.
+
+\subsection{Classifying new unlabelled data} \label{classifying_new_unlabelled_data}
+
+All five classification modules must be trained before they are used. Attempting to use an untrained module instance to classify new data will result in a \lstinline{ValueError} being raised.
+
+To classify new unlabelled data, pass the dataframe containing the new data to the classification module's \lstinline{classify} method:
+
+\lstset{language=Python}
+\begin{lstlisting}
+# Assume: tp_module is a TestPerformedModule instance
+# Assume: tp_df is a dataframe containing unlabelled test_performed
+# rows
+tp_module.classify(tp_df)
+
+# This syntax also works with instances of TestOutcomeModule,
+# Level1MLModule, Level1SymbolicModule, and Level2Module
+\end{lstlisting}
+\lstset{language=}
+
+\subsubsection{Input dataframe format}
+
+The dataframe to classify must have 3 columns: \textit{test\_key}, \textit{result\_key}, and \textit{result\_full\_description}.
+
+In addition, any dataframe to be classified by \lstinline{Level1SymbolicModule} or \lstinline{Level2Module} must contain an additional \textit{candidates} column with the MetaMap \textit{candidate} strings (as described in \ref{metamap_candidates_format}.) The \textit{candidates} column is also required in any dataframe to be classified by a \lstinline{TestPerformedModule} or \lstinline{TestOutcomeModule} that is set to replace organism names as described in \ref{replacing_organism_names_with_a_special_token}.
+
+If the data is given at the observation level in the dataframe, pass \lstinline{observations=True} to the \lstinline{classify} method. This works for all 5 classification modules. The dataframe passed to \lstinline{classify} must then have an extra \textit{obs\_seq\_nbr} column.
+
+\subsubsection{Output dataframe format}
+
+The returned dataframe has columns \textit{test\_key} and \textit{result\_key}, plus the following module-specific columns:
+
+\begin{itemize}
+\item \textbf{\lstinline{TestPerformedModule}}: \textit{test\_performed\_pred}, \textit{test\_performed\_classifier}, \textit{test\_performed\_confidence}, \textit{test\_performed\_confidence\_type}
+\item \textbf{\lstinline{TestOutcomeModule}}: \textit{test\_outcome\_pred}, \textit{test\_outcome\_classifier}, \textit{test\_outcome\_confidence}, \textit{test\_outcome\_confidence\_type}
+\item \textbf{\lstinline{Level1MLModule}}: \textit{level\_1\_ml\_pred}, \textit{level\_1\_ml\_classifier}, \textit{level\_1\_ml\_confidence}, \linebreak \textit{level\_1\_ml\_confidence\_type}
+\item \textbf{\lstinline{Level1SymbolicModule}}: \textit{level\_1\_symbolic\_pred}
+\item \textbf{\lstinline{Level2Module}}: \textit{level\_2\_pred}
+\end{itemize}
+
+If \lstinline{observations=True}, the returned dataframe contains an extra \textit{obs\_seq\_nbr} column.
+
+By default, the \lstinline{Level1SymbolicModule} and \lstinline{Level2Module} return the most likely organism name among all the candidate organism names obtained from MetaMap. To return the list of \textbf{all} the candidate organism names (serialized as a JSON string,) pass \lstinline{return_all=True} to the \lstinline{classify} method.
+
+\subsubsection{Classification process for machine learning modules}
+
+The trained machine learning classifier is used to output the classifications.
+
+\subsubsection{Classification process for \lstinline{Level1SymbolicModule}}
+
+A \lstinline{Level1SymbolicModule} uses the following algorithm to return the \textit{level\_1} prediction for a data row.
+
+If the \lstinline{Level1SymbolicModule} holds a reference to a trained helper \lstinline{TestOutcomeModule} as described in \ref{helper_modules}, the helper module is used to predict if the new data row has a \textit{negative} test outcome. If so, the \lstinline{Level1SymbolicModule} returns \textit{*not found}. This step is skipped if the \lstinline{Level1SymbolicModule} does not hold a reference to a helper module.
+
+At this point, if \lstinline{return_all=True}, all of the preferred names in the MetaMap \textit{candidates} list are returned as an array in a serialized JSON string.
+
+Otherwise, the algorithm iterates over all preferred organism names in the candidate list. For each organism name, if a prefix of the name is in the \lstinline{Level1SymbolicModule}'s dictionary, the prefix is returned. If no prefix of any organism name is in the dictionary, an arbitrary organism name in the candidates list is returned.
+
+Intuitively, the algorithm prefers to return organism names that already exist in the database, but can also return a new organism name if none of the MetaMap candidates exist in the database.
+
+\subsubsection{Classification process for \lstinline{Level2Module}}
+
+A \lstinline{Level2Module} uses the following algorithm to return the \textit{level\_2} prediction for a data row.
+
+First, the helper \textit{Level 1} module is used to produce a \textit{level\_1} prediction for the data row:
+
+\begin{itemize}
+\item If the \textit{level\_1} prediction is \textit{*not found}, then \textit{*not found} is returned as the \textit{level\_2} prediction.
+\item Otherwise, if the \textit{level\_1} prediction is not in the dictionary, then \textit{*no further diff} is returned.
+\end{itemize}
+
+At this point, if \lstinline{return_all=True}, all of the preferred names in the MetaMap \textit{candidates} list are returned as an array in a serialized JSON string.
+
+Otherwise, the algorithm iterates over all preferred organism names in the candidate list. For each organism name, if a prefix of the name is in the \lstinline{Level2Module}'s dictionary and is in the set corresponding to the \textit{level\_1} prediction, the prefix is returned as the \textit{level\_2} prediction. If no prefix of any organism name is in the dictionary, an arbitrary organism name in the candidates list is returned.
+
+\subsection{Saving to disk}
+
+Due to the long training time of our classification modules, and for reproducibility reasons, we recommend training the classification modules periodically (e.g.: once per month,) and then saving the trained modules to disk and loading them back into memory every time new data needs to be classified.
+
+To save a classification module, call its \lstinline{save_to_file} method, passing the absolute path to the \textit{.pkl} file to save to:
+
+\lstset{language=Python}
+\begin{lstlisting}
+# Assume: tp_module is a TestPerformedModule instance
+tp_module.save_to_file(from_root("pkl\\test_performed_module.pkl"))
+
+# This syntax also works with instances of TestOutcomeModule,
+# Level1MLModule, Level1SymbolicModule, and Level2Module.
+\end{lstlisting}
+\lstset{language=}
+
+As discussed in \ref{classifying_new_unlabelled_data}, \lstinline{Level1SymbolicModule} and \lstinline{Level2Module} instances may hold references to \lstinline{TestOutcomeModule} and \textit{Level 1} helper modules, respectively. When a \lstinline{Level1SymbolicModule} or \lstinline{Level2Module} is saved to disk, its helper module is \textbf{not} saved. It is the pipeline user's responsibility to manually save the helper module.
+
+\subsection{Loading from disk}
+
+To load a saved \lstinline{TestPerformedModule}, \lstinline{TestOutcomeModule}, or \lstinline{Level1MLModule} instance, call the static \lstinline{load_from_file} method, passing the absolute path to the \textit{.pkl} file to load from:
+
+\lstset{language=Python}
+\begin{lstlisting}
+tp_module = TestPerformedModule.load_from_file(
+    from_root("pkl\\test_performed_module.pkl"))
+
+# This syntax also works with TestOutcomeModule and Level1MLModule
+\end{lstlisting}
+\lstset{language=}
+
+To load a saved \lstinline{Level1SymbolicModule} or \lstinline{Level2Module} instance, call the constructor, passing the helper module instance; then chain a call to the \lstinline{load_from_file} method, passing the absolute path to the \textit{.pkl} file to load from:
+
+\lstset{language=Python}
+\begin{lstlisting}
+l1s_module = Level1SymbolicModule(to_module).load_from_file(
+    from_root("pkl\\level_1_symbolic_module.pkl"))
+# l1s_module is a loaded Level1SymbolicModule that refers to to_module
+
+l1s_module = Level1SymbolicModule().load_from_file(
+    from_root("pkl\\level_1_symbolic_module.pkl"))
+# l1s_module is a loaded Level1SymbolicModule with no helper module
+
+l2_module = Level2Module(l1s_module).load_from_file(
+    from_root("pkl\\level_2_module.pkl"))
+# l2_module is a loaded Level2Module that refers to l1s_module
+\end{lstlisting}
+\lstset{language=}
+
+\section{Diagnostics}
+
+\subsection{Benchmarking the time complexity of training}
+
+Our pipeline can benchmark the runtime of the training process on varying amounts of training data. The pipeline saves a plot of the runtimes, so it is easy to visualize the relationship between training set size and runtime.
+
+To run the time complexity benchmark, run \textit{driver/complexity.py} after setting the constants at the top of the script to the desired values:
+
+\begin{itemize}
+\item \textbf{\lstinline{TP_SQL}}, \textbf{\lstinline{TO_SQL}}, \textbf{\lstinline{L1_SQL}}, and \textbf{\lstinline{L2_SQL}} - absolute paths to SQL scripts for extracting training data for the \textit{Test Performed}, \textit{Test Outcome}, \textit{Level 1}, and \textit{Level 2} labels, respectively
+\item \textbf{\lstinline{SIZES}} - a list of positive integers representing sample sizes (number of rows in the training set) to benchmark training runtime for
+\item \textbf{\lstinline{ORGANISMS}} - \lstinline{True} to replace all organism names in the \lstinline{TestPerformedModule} and \lstinline{TestOutcomeModule} feature spaces with the "\_ORGANISM\_" feature as described in \ref{replacing_organism_names_with_a_special_token}; \lstinline{False} to disable this functionality
+\item \textbf{\lstinline{SAVE_TO}} - the absolute path to the image file to save the plot to
+\end{itemize}
+
+The SQL scripts must return the columns necessary to run the \lstinline{retrain} method on each classification module, and must not return empty training sets.
+
+\subsubsection{Design considerations}
+
+The benchmark's sampling logic implements \textbf{random sampling with replacement} to allow greater sample sizes than the number of rows extracted by the SQL script. As a result, there may be duplicate rows in a selected sample, \textbf{even when} the sample size is less than the total number of extracted rows.
+
+These duplicates do not affect the training time, and thus do not affect the benchmark results; so the random sampling with replacement algorithm was chosen for ease of implementation.
+
+Using duplicate rows would result in an inaccurate classifier, but this is a non-issue for the purposes of measuring training runtime.
+
+\subsection{Benchmarking the accuracy of classification}
+
+Our pipeline implements 5-fold cross-validation for computing the expected accuracy of the classification modules. The input to this process is the training set $S$ of labelled \textit{result\_full\_descriptions}. In this process, the training set is split into 5 disjoint folds $f_1, \ldots, f_5$. Five passes are made; in the $i$th pass, a new instance of the classification module is trained on $S - f_i$ and the accuracy $A_i$ of classifying $f_i$ is recorded. The expected accuracy is the arithmetic mean of $A_1, \ldots, A_5$.
+
+To run the benchmark, run \textit{driver/verify.py}. The \textbf{\lstinline{TP_SQL}}, \textbf{\lstinline{TO_SQL}}, \textbf{\lstinline{L1_SQL}}, \textbf{\lstinline{L2_SQL}}, and \textbf{\lstinline{ORGANISMS}} constants at the top of the script have the same meaning as they do in \textit{driver/complexity.py}. The \textbf{\lstinline{SAVE_TO}} constant is the absolute path to the folder to save the results into.
+
+\subsubsection{Saved result format}
+
+In the \lstinline{SAVE_TO} folder, the results are stored as 6 text files: one file per fold of the cross-validation, plus one summary file.
+
+A file for one fold contains the accuracy, class-wise precision, class-wise recall, class-wise F1 scores, and Cohen Kappa score achieved on that fold. It also contains the confusion matrix and the list of labels. The \textit{i}th element of the class-wise precision, recall, and F1 score lists, and the \textit{i}th row and column of the confusion matrix, refer to the class with the \textit{i}th label in the list of labels.
+
+The summary file contains the list of accuracies achieved in the 5 folds, their mean, and their standard deviation.
+
+\subsubsection{Design considerations}
+
+Our benchmark does not support classification at the observation level (set by the \lstinline{observations=True} flag in the \lstinline{classify} method for all five classification modules.) There is no labelled data at the observation level, so it is impossible to automatically measure the accuracy of the classification process at the observation level.
+
+Our benchmark does not support returning all candidate organisms (set by the \lstinline{return_all=True} flag in the \lstinline{Level1SymbolicModule.classify} and \lstinline{Level2Module.classify} methods.) Returning all candidates would overcomplicate the process for computing accuracy.
+
+\section{Filepaths}
+
+To convert a path relative to the project root to an absolute path, use the \lstinline{from_root} function. Import it as follows:
+
+\lstset{language=Python}
+\begin{lstlisting}
+from root import from_root
+\end{lstlisting}
+\lstset{language=}
+
+Use it as follows:
+
+\lstset{language=Python}
+\begin{lstlisting}
+rel_path = "sql\\train\\level_1.sql"
+abs_path = from_root(rel_path)
+# Assume the Pipeline project is stored at "U:\\dssg_bccdc\\Pipeline",
+# then abs_path is "U:\\dssg_bccdc\\Pipeline\\sql\\train\\level_1.sql"
+\end{lstlisting}
+\lstset{language=}
+
+\section{Error handling} \label{error_handling}
+
+All of the pipeline entry points in the \textit{driver} folder implement an error handling mechanism, allowing errors to be gracefully logged when the pipeline is run as part of a larger automation process.
+
+When a script in the \textit{driver} folder is run, a log file with the same name as the script is created in the \textit{log} folder in the project root if such a file does not already exist.
+
+If no errors are raised during the execution of the script, no lines are appended to the log file and the script exits with exit code 0.
+
+If an error is raised during the execution of the script, it is gracefully caught and its stack trace, along with the current timestamp, is appended to the log file. The script then immediately exits with exit code 1, indicating an error occurred.
+
+\section{Folder structure}
+
+Our pipeline's folder structure is:
+
+\begin{itemize}
+\item \textit{docs} - folder containing this technical documentation, in LaTeX and PDF formats
+\item \textit{driver} - Python scripts that are entry points to the pipeline
+\item \textit{io\_} - Python functions for database and filesystem operations. This folder is named \textit{io\_} because \textit{io} is a built-in Python module.
+\item \textit{libs} - \textit{.jar} files containing compiled Java code for interacting with the MetaMap Java API server
+\item \textit{log} - folder for log files to be written to. Log files are generated during pipeline execution as described in \ref{error_handling}.
+\item \textit{modules} - Python classes implementing the classification modules for the \textit{Test Performed}, \textit{Test Outcome}, \textit{Level 1}, and \textit{Level 2} labels
+\item \textit{pkl} - Python \textit{pickle} files storing sample, pre-trained instances of the classification modules
+\item \textit{results} - folder for the diagnostics results (time complexity plot and cross-validation details) to be written to
+\item \textit{sql} - sample SQL scripts for extracting training and test data sets from the database
+\item \textit{util} - Python functions used as private helper functions by code in other folders
+\end{itemize}
+
+\section{Dependencies}
+
+Our pipeline depends on these external libraries:
+
+\subsection{Python dependencies}
+
+\begin{itemize}
+\item \textbf{pyodbc} - a driver for interfacing with the Microsoft SQL Server database
+\item \textbf{SQLAlchemy} - an ORM to simplify database operations
+\item \textbf{pandas} - dataframes for in-memory storage and wrangling of tabular data
+\item \textbf{scikit-learn} - implementations of machine learning algorithms
+\item \textbf{numpy} - implementations of multidimensional arrays and matrices
+\item \textbf{scipy} - implementations of sparse matrices and scientific computing algorithms
+\item \textbf{matplotlib} - a plotting library for drawing the time complexity benchmark results
+\item \textbf{Py4J} - an interface for calling Java code from Python code
+\end{itemize}
+
+\subsection{Java dependencies}
+
+\begin{itemize}
+\item \textbf{MetaMap Java API} - an interface for running the MetaMap annotator on string data
+\item \textbf{org.json} - a JSON parser for converting JSON-formatted strings to Java objects
+\item \textbf{Py4J} - an interface for calling Java code from Python code
+\end{itemize}
+
+\end{document}

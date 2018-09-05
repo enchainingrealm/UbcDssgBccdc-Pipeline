@@ -1,0 +1,14 @@
+Accuracy: 0.9037008079228565
+Precision: [0.9260 0.0000 0.0000 0.0000 1.0000 0.9787 0.4366 0.9853 0.0000 1.0000 0.0000 0.0000 0.0000 0.9847 0.0000 0.0000 0.9804 0.0000 0.0000 0.0000 0.0000 0.9541 0.1667 0.9526 0.0000 0.8000 0.0000 0.0000 0.0000 0.0000 0.0000 0.8478 1.0000 0.0000 0.9765 0.0000 0.0000 0.0000 0.0000 0.0000 0.7727 0.0000 0.0000 0.0000 0.9661 0.6778 0.0000 1.0000 0.0000 0.0000 1.0000 0.0000 0.3103 1.0000]
+Recall: [0.9478 0.0000 0.0000 0.0000 1.0000 0.6667 0.5741 0.9571 0.0000 1.0000 0.0000 0.0000 0.0000 0.8502 0.0000 0.0000 1.0000 0.0000 0.0000 0.0000 0.0000 0.9941 0.0189 0.9560 0.0000 0.1481 0.0000 0.0000 0.0000 0.0000 0.0000 0.4937 1.0000 0.0000 0.8300 0.0000 0.0000 0.0000 0.0000 0.0000 0.4722 0.0000 0.0000 0.0000 0.9157 0.9839 0.0000 0.9980 0.0000 0.0000 0.3333 0.0000 1.0000 0.7115]
+F1 score: [0.9368 0.0000 0.0000 0.0000 1.0000 0.7931 0.4960 0.9710 0.0000 1.0000 0.0000 0.0000 0.0000 0.9125 0.0000 0.0000 0.9901 0.0000 0.0000 0.0000 0.0000 0.9737 0.0339 0.9543 0.0000 0.2500 0.0000 0.0000 0.0000 0.0000 0.0000 0.6240 1.0000 0.0000 0.8973 0.0000 0.0000 0.0000 0.0000 0.0000 0.5862 0.0000 0.0000 0.0000 0.9402 0.8026 0.0000 0.9990 0.0000 0.0000 0.5000 0.0000 0.4737 0.8315]
+Cohen Kappa score: 0.8631176102642615
+Confusion matrix:
+[[3504    2    0 ...    0   10    0]
+ [   0    0    0 ...    0    0    0]
+ [   0    0    0 ...    0    0    0]
+ ...
+ [   4    0    0 ...    0    0    0]
+ [   0    0    0 ...    0    9    0]
+ [  11    0    0 ...    0    1   37]]
+Labels: ['*not found', 'adenoviruses', 'arcobacter butzleri', 'bacteroides ureolyticus', 'bordetella', 'campylobacter', 'chlamydia', 'clostridium', 'coronavirus', 'corynebacterium', 'dna viruses', 'enteroadherent escherichia coli', 'enterovirus', 'escherichia', 'flavonifractor plautii', 'genus: coronavirus', 'haemophilus', 'helicobacter bilis', 'helicobacter canadensis', 'helicobacter pullorum', 'helicobacter winghamensis', 'hepatitis c virus', 'herpesvirus', 'hiv', 'hiv-1', 'human bocavirus', 'human herpesvirus 1', 'human herpesvirus 2', 'human herpesvirus 3', 'human immunodeficiency virus 2 (hiv-2)', 'human metapneumovirus', 'influzena', 'listeria', 'mycoplasma pneumoniae', 'neisseria', 'oral bacteria', 'orthomyxoviridae', 'para-influenza virus type 3', 'parainfluenza', 'parainfluenza or adenovirus', 'respiratory syncytial virus', 'respiratory viruses', 'rhinovirus', 'rhinovirus or enterovirus', 'salmonella', 'shigella', 'simplexvirus', 'streptococcus', 'subclass spirochetes', 'tissierella praeacuta', 'treponema', 'trichomonas', 'vibrio', 'yersinia']

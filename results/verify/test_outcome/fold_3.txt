@@ -1,0 +1,11 @@
+Accuracy: 0.9907668299449478
+Precision: [0.9969 0.8261 0.9742 0.9933]
+Recall: [0.9943 0.9344 0.9846 0.9857]
+F1 score: [0.9956 0.8769 0.9794 0.9895]
+Cohen Kappa score: 0.9808711652788543
+Confusion matrix:
+[[15773    22    49    20]
+ [    8   285     9     3]
+ [   17    26  2948     3]
+ [   24    12    20  3850]]
+Labels: ['*missing', 'indeterminate', 'negative', 'positive']

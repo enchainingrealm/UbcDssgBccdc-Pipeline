@@ -1,0 +1,14 @@
+Accuracy: 0.9096950742767788
+Precision: [0.9250 0.0000 0.0000 0.0000 0.0000 0.9833 1.0000 0.4603 0.9783 0.0000 1.0000 0.0000 0.0000 0.0000 0.0000 0.9821 0.0000 0.0000 0.0000 1.0000 0.0000 0.0000 0.0000 0.9532 0.0000 0.9787 0.0000 0.8750 0.0000 0.0000 0.0000 0.0000 0.0000 0.5000 0.8600 1.0000 0.0000 0.0000 0.9604 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.5652 0.0000 0.0000 0.0000 0.9732 0.6522 0.0000 1.0000 0.0000 1.0000 0.0000 0.5862 0.9231]
+Recall: [0.9492 0.0000 0.0000 0.0000 0.0000 1.0000 0.6667 0.6170 0.9783 0.0000 1.0000 0.0000 0.0000 0.0000 0.0000 0.8902 0.0000 0.0000 0.0000 1.0000 0.0000 0.0000 0.0000 0.9867 0.0000 0.9753 0.0000 0.2500 0.0000 0.0000 0.0000 0.0000 0.0000 0.1176 0.4886 0.9286 0.0000 0.0000 0.8739 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.4194 0.0000 0.0000 0.0000 0.9316 0.9783 0.0000 0.9981 0.0000 0.5455 0.0000 0.9444 0.7500]
+F1 score: [0.9369 0.0000 0.0000 0.0000 0.0000 0.9916 0.8000 0.5273 0.9783 0.0000 1.0000 0.0000 0.0000 0.0000 0.0000 0.9339 0.0000 0.0000 0.0000 1.0000 0.0000 0.0000 0.0000 0.9697 0.0000 0.9770 0.0000 0.3889 0.0000 0.0000 0.0000 0.0000 0.0000 0.1905 0.6232 0.9630 0.0000 0.0000 0.9151 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 0.4815 0.0000 0.0000 0.0000 0.9520 0.7826 0.0000 0.9990 0.0000 0.7059 0.0000 0.7234 0.8276]
+Cohen Kappa score: 0.87063626394923
+Confusion matrix:
+[[3529    1    0 ...    0    4    3]
+ [   0    0    0 ...    0    0    0]
+ [   0    0    0 ...    0    0    0]
+ ...
+ [   7    0    0 ...    0    0    0]
+ [   0    0    0 ...    0   17    0]
+ [  12    0    0 ...    0    0   36]]
+Labels: ['*not found', 'adenoviruses', 'arcobacter', 'arcobacter butzleri', 'bacteroides ureolyticus', 'bordetella', 'campylobacter', 'chlamydia', 'clostridium', 'coronavirus', 'corynebacterium', 'coxsackie viruses', 'dna viruses', 'enteroadherent escherichia coli', 'enterovirus', 'escherichia', 'flavonifractor plautii', 'genus: coronavirus', 'grimontia hollisae', 'haemophilus', 'helicobacter canadensis', 'helicobacter cholecystus', 'helicobacter cinaedi', 'hepatitis c virus', 'herpesvirus', 'hiv', 'hiv-1', 'human bocavirus', 'human coronavirus 229e', 'human coronavirus nl63', 'human herpesvirus 1', 'human herpesvirus 2', 'human herpesvirus 3', 'human metapneumovirus', 'influzena', 'listeria', 'mycoplasma', 'mycoplasma pneumoniae', 'neisseria', 'oral bacteria', 'para-influenza virus type 1', 'para-influenza virus type 3', 'parainfluenza', 'parainfluenza or adenovirus', 'proteus', 'respiratory syncytial virus', 'respiratory viruses', 'rhinovirus', 'rhinovirus or enterovirus', 'salmonella', 'shigella', 'simplexvirus', 'streptococcus', 'subclass spirochetes', 'treponema', 'trichomonas', 'vibrio', 'yersinia']
